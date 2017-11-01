@@ -87,7 +87,7 @@ if __name__ == '__main__' :
         hyp = [line.split() for line in instream]
 
         if not args.debug :
-            print os.path.basename(hpath),
+            print(os.path.basename(hpath),)
 
         # first generate a random list of indices, using a different seed
         # for each iteration
@@ -98,11 +98,11 @@ if __name__ == '__main__' :
                             for i in range(len(hyp))])
 
         if args.debug :
-            print
-            print '===== Sentence-level scores ====='
-            print 'SID Mean Stdev 95%CI GLEU'
+            print()
+            print('===== Sentence-level scores =====')
+            print('SID Mean Stdev 95%CI GLEU')
 
-        iter_stats = [ [0 for i in xrange(2*args.n+2)]
+        iter_stats = [ [0 for i in range(2*args.n+2)]
                        for j in range(num_iterations) ]
 
         for i,h in enumerate(hyp) :
@@ -133,16 +133,16 @@ if __name__ == '__main__' :
                         stats_by_ref[r] = [s for s in gleu_calculator.gleu_stats(
                             i,r_ind=r) ]
 
-                print i,
-                print ' '.join(get_gleu_stats([gleu_calculator.gleu(stats,smooth=True)
-                                               for stats in stats_by_ref]))
+                print(i,)
+                print(' '.join(get_gleu_stats([gleu_calculator.gleu(stats,smooth=True)
+                                               for stats in stats_by_ref])))
 
         if args.debug :
-            print '\n==== Overall score ====='
-            print 'Mean Stdev 95%CI GLEU'
-            print ' '.join(get_gleu_stats([gleu_calculator.gleu(stats)
-                                           for stats in iter_stats ]))
+            print('\n==== Overall score =====')
+            print('Mean Stdev 95%CI GLEU')
+            print(' '.join(get_gleu_stats([gleu_calculator.gleu(stats)
+                                           for stats in iter_stats ])))
         else :
-            print get_gleu_stats([gleu_calculator.gleu(stats)
-                                  for stats in iter_stats ])[0]
+            print(get_gleu_stats([gleu_calculator.gleu(stats)
+                                  for stats in iter_stats ])[0])
 
