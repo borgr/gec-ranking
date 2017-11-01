@@ -81,10 +81,14 @@ if __name__ == '__main__' :
 
     gleu_calculator.load_sources(args.source)
     gleu_calculator.load_references(args.reference)
-
+  
     for hpath in args.hypothesis :
-        instream = sys.stdin if hpath == '-' else open(hpath)
-        hyp = [line.split() for line in instream]
+        if hpath == '-':
+            instream = sys.stdin  
+            hyp = [line.split() for line in instream]
+        else:
+            with open(hpath) as instream:
+                hyp = [line.split() for line in instream]
 
         if not args.debug :
             print(os.path.basename(hpath),)
