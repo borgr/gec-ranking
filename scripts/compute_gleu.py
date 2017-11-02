@@ -29,7 +29,7 @@ from gleu import GLEU
 import scipy.stats
 import numpy as np
 import random
-
+import six
 
 def get_gleu_stats(scores):
     mean = np.mean(scores)
@@ -38,6 +38,94 @@ def get_gleu_stats(scores):
     return ['%f' % mean,
             '%f' % std,
             '(%.3f,%.3f)' % (ci[0], ci[1])]
+
+def gleu_scores(source, references, systems, ngrams_len=4, num_iterations=500, debug=False):
+    # if there is only one reference, just do one iteration
+    if len(references) == 1:
+        num_iterations = 1
+
+    gleu_calculator = GLEU(ngrams_len)
+
+    if isinstance(source, six.string_types):
+        gleu_calculator.load_sources(source)
+    else:
+        gleu_calculator.set_sources(source)
+
+    if isinstance(references[0], six.string_types):
+        gleu_calculator.load_references(references)
+    else:
+        gleu_calculator.set_references(references)
+
+    total = []
+    per_sentence = []
+    for hpath in systems:
+        if isinstance(hpath, six.string_types):
+            with open(hpath) as instream:
+                hyp = [line.split() for line in instream]
+            if not debug:
+                print(os.path.basename(hpath),)
+        else:
+            instream = hpath
+            hyp = [line.split() for line in instream]
+
+        # first generate a random list of indices, using a different seed
+        # for each iteration
+        indices = []
+        for j in range(num_iterations):
+            random.seed(j * 101)
+            indices.append([random.randint(0, len(references) - 1)
+                            for i in range(len(hyp))])
+
+        if debug:
+            print()
+            print('===== Sentence-level scores =====')
+            print('SID Mean Stdev 95%CI GLEU')
+
+        iter_stats = [[0 for i in range(2 * ngrams_len + 2)]
+                      for j in range(num_iterations)]
+
+        for i, h in enumerate(hyp):
+
+            gleu_calculator.load_hypothesis_sentence(h)
+            # we are going to store the score of this sentence for each ref
+            # so we don't have to recalculate them 500 times
+
+            stats_by_ref = [None for r in range(len(references))]
+
+            for j in range(num_iterations):
+                ref = indices[j][i]
+                this_stats = stats_by_ref[ref]
+
+                if this_stats is None:
+                    this_stats = [s for s in gleu_calculator.gleu_stats(
+                        i, r_ind=ref)]
+                    stats_by_ref[ref] = this_stats
+
+                iter_stats[j] = [sum(scores)
+                                 for scores in zip(iter_stats[j], this_stats)]
+
+            per_sentence.append(get_gleu_stats([gleu_calculator.gleu(stats, smooth=True)
+                                                for stats in stats_by_ref]))
+            if debug:
+                # sentence-level GLEU is the mean GLEU of the hypothesis
+                # compared to each reference
+                for r in range(len(references)):
+                    if stats_by_ref[r] is None:
+                        stats_by_ref[r] = [s for s in gleu_calculator.gleu_stats(
+                            i, r_ind=r)]
+
+                print(i,)
+                print(' '.join(per_sentence[-1]))
+        total.append(get_gleu_stats([gleu_calculator.gleu(stats)
+                                     for stats in iter_stats]))
+        if debug:
+            print('\n==== Overall score =====')
+            print('Mean Stdev 95%CI GLEU')
+            print(' '.join(total[-1]))
+        else:
+            print("total", total[-1][0])
+    return total, per_sentence
+
 
 if __name__ == '__main__':
 
@@ -74,82 +162,4 @@ if __name__ == '__main__':
                         help='the number of iterations to run')
 
     args = parser.parse_args()
-
-    num_iterations = args.iter
-
-    # if there is only one reference, just do one iteration
-    if len(args.reference) == 1:
-        num_iterations = 1
-
-    gleu_calculator = GLEU(args.n)
-
-    gleu_calculator.load_sources(args.source)
-    gleu_calculator.load_references(args.reference)
-
-    for hpath in args.hypothesis:
-        if hpath == '-':
-            instream = sys.stdin
-            hyp = [line.split() for line in instream]
-        else:
-            with open(hpath) as instream:
-                hyp = [line.split() for line in instream]
-
-        if not args.debug:
-            print(os.path.basename(hpath),)
-
-        # first generate a random list of indices, using a different seed
-        # for each iteration
-        indices = []
-        for j in range(num_iterations):
-            random.seed(j * 101)
-            indices.append([random.randint(0, len(args.reference) - 1)
-                            for i in range(len(hyp))])
-
-        if args.debug:
-            print()
-            print('===== Sentence-level scores =====')
-            print('SID Mean Stdev 95%CI GLEU')
-
-        iter_stats = [[0 for i in range(2 * args.n + 2)]
-                      for j in range(num_iterations)]
-
-        for i, h in enumerate(hyp):
-
-            gleu_calculator.load_hypothesis_sentence(h)
-            # we are going to store the score of this sentence for each ref
-            # so we don't have to recalculate them 500 times
-
-            stats_by_ref = [None for r in range(len(args.reference))]
-
-            for j in range(num_iterations):
-                ref = indices[j][i]
-                this_stats = stats_by_ref[ref]
-
-                if this_stats is None:
-                    this_stats = [s for s in gleu_calculator.gleu_stats(
-                        i, r_ind=ref)]
-                    stats_by_ref[ref] = this_stats
-
-                iter_stats[j] = [sum(scores)
-                                 for scores in zip(iter_stats[j], this_stats)]
-
-            if args.debug:
-                # sentence-level GLEU is the mean GLEU of the hypothesis
-                # compared to each reference
-                for r in range(len(args.reference)):
-                    if stats_by_ref[r] is None:
-                        stats_by_ref[r] = [s for s in gleu_calculator.gleu_stats(
-                            i, r_ind=r)]
-
-                print(i,)
-                print(' '.join(get_gleu_stats([gleu_calculator.gleu(stats, smooth=True)
-                                               for stats in stats_by_ref])))
-
-        if args.debug:
-            print('\n==== Overall score =====')
-            print('Mean Stdev 95%CI GLEU')
-            print(' '.join(get_gleu_stats([gleu_calculator.gleu(stats)
-                                           for stats in iter_stats])))
-        else:
-            print(get_gleu_stats([gleu_calculator.gleu(stats)
-                                  for stats in iter_stats])[0])
+    gleu_scores(args.source, args.reference, args.hypothesis, args.n, num_iterations=args.iter, debug=args.debug)
