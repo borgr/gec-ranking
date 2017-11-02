@@ -48,8 +48,6 @@ class GLEU:
             for i, line in enumerate(ref_setences):
                 self.refs[i].append(line.split())
                 self.rlens[i].append(len(line.split()))
-            print(self.refs[i][0])
-            # print(i)
         # count number of references each n-gram appears in
         self.all_rngrams_freq = [Counter() for i in range(self.order)]
 
